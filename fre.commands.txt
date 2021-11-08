@@ -1,0 +1,11 @@
+pip show flask
+pip install -r requirements.txt.
+python -m venv env
+python -m pip install flask
+env\Scripts\activate.bat
+python examples.py
+alembic revision --autogenerate
+alembic upgrade +1
+alembic downgrade -1
+pip install -U marshmallow
+set FLASK_ENV=development

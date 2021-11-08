@@ -1,0 +1,193 @@
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from flask_bcrypt import *
+
+app = Flask(__name__)
+
+app.config['SECRET_KEY'] = "Newpassword"
+app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+mysqlconnector://root:Newpassword@localhost/lab6"
+
+counter = 3
+bcrypt = Bcrypt(app)
+session = sessionmaker(bind=engine)
+ss = session()
+purses = 1
+transfers = 1
+
+@app.route('/user', methods=['POST'])
+def create_user():
+    global counter
+    try:
+        data = request.get_json(force=True)
+        hashed_password = bcrypt.generate_password_hash(data["password"])
+        new_user = User(counter, data["username"], data["firstName"],
+                        data["lastName"], data["email"], hashed_password, data["phone"])
+    except:
+        return Response(status=400, response='Invalid user suplied')
+    counter += 1
+    ss.add(new_user)
+    ss.commit()
+    return Response(status=200, response='successful operation')
+@app.route('/user', methods=['GET'])
+def get_user_by_user_name(user_name):
+    pass
+
+
+from flask import Blueprint, Response, request, jsonify, Flask
+from marshmallow import ValidationError
+from  models import *
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from flask_bcrypt import Bcrypt
+
+app = Flask(name)
+
+app.config['SECRET_KEY'] = "1111"
+app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+mysqlconnector://root:1111@localhost/lab6"
+
+counter = 1
+bcrypt = Bcrypt(app)
+session = sessionmaker(bind=engine)
+ss = session()
+purses = 1
+transfers = 1
+
+@app.route('/user', methods=['POST'])
+def create_user():
+    global counter
+    try:
+        data = request.get_json(force=True)
+        hashed_password = bcrypt.generate_password_hash(data["password"])
+        new_user = User(counter, data["firstName"], data["lastName"], data["email"], hashed_password, data["phone"])
+    except:
+        return Response(status = 400, response = 'Invalid user suplied')
+    counter += 1
+    ss.add(new_user)
+    ss.commit()
+    return Response(status = 200,response = 'successful operation')
+
+@app.route('/user', methods = ['PUT'])
+def get_user():
+    data = request.get_json(force=True)
+    users = User.query.filter_by(user_id=data['user_id']).first()
+    if not users:
+        return Response(status = 404, response = 'User not found')
+    try:
+        if("firstName" in list(data)):
+            users.firstName = data['firstName']
+        if('lastName' in list(data)):
+            users.lastName = data['lastName']
+        if('email' in list(data)):
+            users.email = data['email']
+        if('password' in list(data)):
+           users.password = data['password']
+        if('phone' in list(data)):
+            users.phone = data['phone']
+    except:
+        return Response(status = 400, response = 'Invalid user suplied')
+    ss.commit()
+    state_data = {"firstName" : users.firstName, "lastName" : users.lastName, "email" : users.email, "phone" : users.phone}
+    return jsonify({"user": state_data}), 200
+
+@app.route('/user/login', methods = ['GET'])
+def login():
+    data = request.get_json(force=True)
+    users = User.query.filter_by(phone=data['phone']).first()
+    if not users:
+        return Response(status = 400, response = 'Invalid phone/password supplied')
+    if(bcrypt.check_password_hash(users.password, data['password']) == False):
+        return Response(status = 400, response = 'Invalid phone/password supplied')
+    return Response(status = 200, response = 'successful operation')
+
+@app.route('/user/logout', methods = ['GET'])
+def logout():
+    return Response(status = 'default',response = 'successful operation')
+
+@app.route('/user/<phones>', methods = ['DELETE'])
+def delete_user(phones):
+    try:
+        users = ss.query(User).filter(User.phone==phones).first()
+    except:
+        return Response(status = 400, response = 'Invalid userphone supplied')
+    if not users:
+        return Response(status = 404, response = 'User not found')
+    ss.delete(users)
+    ss.commit()
+    return Response(status = '200',response = 'successful operation')
+
+@app.route('/user/<phone>', methods = ['POST'])
+def create_purse(phone):
+    global purses
+    data = request.get_json(force=True)
+    users = User.query.filter_by(phone=phone).first()
+    if not users:
+        return Response(status = 404, response = 'User not found')
+    try:
+        pursess = Purse(purses, data['funds'], data['userId'])
+    except:
+        return Response(status = 405 ,response = 'Invalid input')
+    purse_data = {"PurseId" : purses, "userId" : data['userId'], "funds" : data['funds']}
+    ss.add(pursess)
+    ss.commit()
+    purses += 1
+    return jsonify({"purse": purse_data}), 200
+
+@app.route('/purse/<PurseId>', methods = ['DELETE'])
+def delete_purse(PurseId):
+    try:
+        purse = ss.query(Purse).filter(Purse.purse_id==PurseId, Purse.user_id == 1).first()
+    except:
+        return Response(status = 400, response = 'Invalid ID supplied')
+    if not purse:
+        return Response(status = 404, response = 'Purse not found')
+    ss.delete(purse)
+    ss.commit()
+    return Response(status = '200',response = 'successful operation')
+
+
+@app.route('/purse/<PurseId>', methods = ['GET'])
+def get_purse(PurseId):
+    try:
+        purse = ss.query(Purse).filter(Purse.purse_id==PurseId, Purse.user_id == 1).first()
+    except:
+        return Response(status = 400, response = 'Invalid ID supplied')
+    if not purse:
+        return Response(status = 404, response = 'Purse not found')
+    purse_data = {"PurseId" : purse.purse_id, "userId" : purse.user_id, "funds" : purse.funds}
+    return jsonify({"purse": purse_data}), 200
+
+@app.route('/transfer', methods = ['POST'])
+def make_transfer():
+    global transfers
+    data = request.get_json(force=True)
+    try:
+        purse1 = ss.query(Purse).filter(Purse.purse_id==data['idPurseFrom'], Purse.user_id == data['UserIdFrom']).first()
+        purse2 = ss.query(Purse).filter(Purse.purse_id==data['idPurseTo'], Purse.user_id == data['UserIdTo']).first()
+    except:
+        return Response(status = '400', response = "Invalid response supplied")
+    if (not purse1) or (not purse2):
+        return Response(status = '404', response = "Purse or User not found")
+    if(purse1.funds < data['quanityFunds']):
+        return Response(status = '405', response = "Can't make transfer")
+    transfer = Transfer(transfers, data['quanityFunds'], data['date'], data['idPurseFrom'], data['idPurseTo'], data['UserIdFrom'], data['UserIdTo'])
+    ss.add(transfer)
+    purse1.funds -= data['quanityFunds']
+    purse2.funds += data['quanityFunds']
+    ss.commit()
+    transfers += 1
+    return Response(status='200', response = "successful operation")
+
+@app.route('/transfer/<TransferId>', methods = ['GET'])
+def get_transfer(TransferId):
+    try:
+        transfers = ss.query(Transfer).filter(Transfer.transfer_id==TransferId).first()
+    except:
+        return response(status = '400', response = "Invalid ID supplied")
+    if not transfers:
+        return response(status = '404', response = "Transfer not found")
+    transfer_data = {"TransferId" : transfers.transfer_id, "UserIdFrom" : transfers.user_id_from, "idPurseFrom" : transfers.purse_id_from, "UserIdTo" : transfers.user_id_to, "idPurseTo": transfers.purse_id_to, "quanityFunds" : transfers.quantity_funds, "date" : transfers.date}
+    return jsonify({"transfer": transfer_data}), 200
+
+if name == 'main':
+    app.run(debug=True)
